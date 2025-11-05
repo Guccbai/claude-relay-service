@@ -13,6 +13,7 @@ const pricingService = require('./services/pricingService')
 const cacheMonitor = require('./utils/cacheMonitor')
 
 // Import routes
+const v1Routes = require('./routes/v1Routes') // 新的统一 v1 路由
 const apiRoutes = require('./routes/api')
 const unifiedRoutes = require('./routes/unified')
 const adminRoutes = require('./routes/admin')
@@ -256,25 +257,30 @@ class Application {
       }
 
       // 🛣️ 路由
+      // 🆕 统一 v1 路由（优先级最高）
+      this.app.use('/v1', v1Routes) // 新的统一路由系统
+
+      // 🔄 向后兼容的旧路由（保持现有客户端正常工作）
       this.app.use('/api', apiRoutes)
       this.app.use('/api', unifiedRoutes) // 统一智能路由（支持 /v1/chat/completions 等）
       this.app.use('/claude', apiRoutes) // /claude 路由别名，与 /api 功能相同
-      this.app.use('/admin', adminRoutes)
-      this.app.use('/users', userRoutes)
-      // 使用 web 路由（包含 auth 和页面重定向）
-      this.app.use('/web', webRoutes)
-      this.app.use('/apiStats', apiStatsRoutes)
-      // Gemini 路由：同时支持标准格式和原有格式
       this.app.use('/gemini', standardGeminiRoutes) // 标准 Gemini API 格式路由
       this.app.use('/gemini', geminiRoutes) // 保留原有路径以保持向后兼容
       this.app.use('/openai/gemini', openaiGeminiRoutes)
       this.app.use('/openai/claude', openaiClaudeRoutes)
       this.app.use('/openai', unifiedRoutes) // 复用统一智能路由，支持 /openai/v1/chat/completions
       this.app.use('/openai', openaiRoutes) // Codex API 路由（/openai/responses, /openai/v1/responses）
-      // Droid 路由：支持多种 Factory.ai 端点
-      this.app.use('/droid', droidRoutes) // Droid (Factory.ai) API 转发
       this.app.use('/azure', azureOpenaiRoutes)
+
+      // 🤖 Droid 路由（Factory.ai）
+      this.app.use('/droid', droidRoutes) // Droid (Factory.ai) API 转发
+
+      // 🔧 管理和系统路由
+      this.app.use('/admin', adminRoutes)
       this.app.use('/admin/webhook', webhookRoutes)
+      this.app.use('/users', userRoutes)
+      this.app.use('/web', webRoutes) // Web 界面路由（包含 auth 和页面重定向）
+      this.app.use('/apiStats', apiStatsRoutes)
 
       // 🏠 根路径重定向到新版管理界面
       this.app.get('/', (req, res) => {

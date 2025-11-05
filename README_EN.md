@@ -238,8 +238,13 @@ Now you can replace the official API with your own service:
 
 **Set environment variables:**
 ```bash
-export ANTHROPIC_BASE_URL="http://127.0.0.1:3000/api/" # Fill in your server's IP address or domain according to actual situation
+# 🆕 New configuration (Recommended, more concise)
+export ANTHROPIC_BASE_URL="http://127.0.0.1:3000/v1/" # Fill in your server's IP address or domain
 export ANTHROPIC_AUTH_TOKEN="API key created in the backend"
+
+# 🔄 Old configuration (Still supported for backward compatibility)
+# export ANTHROPIC_BASE_URL="http://127.0.0.1:3000/api/"
+# export ANTHROPIC_AUTH_TOKEN="API key created in the backend"
 ```
 
 **Use claude:**

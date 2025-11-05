@@ -16,11 +16,55 @@ function hasDroidPermission(apiKeyData) {
  * Droid API 转发路由
  *
  * 支持的 Factory.ai 端点:
- * - /droid/claude - Anthropic (Claude) Messages API
- * - /droid/openai - OpenAI Responses API
+ * - /droid/v1/messages - Anthropic (Claude) Messages API
+ * - /droid/v1/chat/completions - OpenAI Chat Completions API
+ *
+ * 向后兼容的旧路由:
+ * - /droid/claude/v1/messages
+ * - /droid/openai/v1/responses
  */
 
-// Claude (Anthropic) 端点 - /v1/messages
+// 🆕 统一路由 - Claude Messages API
+router.post('/v1/messages', authenticateApiKey, async (req, res) => {
+  try {
+    const sessionHash = sessionHelper.generateSessionHash(req.body)
+
+    if (!hasDroidPermission(req.apiKey)) {
+      logger.security(
+        `🚫 API Key ${req.apiKey?.id || 'unknown'} 缺少 Droid 权限，拒绝访问 ${req.originalUrl}`
+      )
+      return res.status(403).json({
+        error: 'permission_denied',
+        message: '此 API Key 未启用 Droid 权限'
+      })
+    }
+
+    const result = await droidRelayService.relayRequest(
+      req.body,
+      req.apiKey,
+      req,
+      res,
+      req.headers,
+      { endpointType: 'anthropic', sessionHash }
+    )
+
+    // 如果是流式响应，已经在 relayService 中处理了
+    if (result.streaming) {
+      return
+    }
+
+    // 非流式响应
+    res.status(result.statusCode).set(result.headers).send(result.body)
+  } catch (error) {
+    logger.error('Droid Claude relay error:', error)
+    res.status(500).json({
+      error: 'internal_server_error',
+      message: error.message
+    })
+  }
+})
+
+// 🔄 向后兼容 - Claude (Anthropic) 端点
 router.post('/claude/v1/messages', authenticateApiKey, async (req, res) => {
   try {
     const sessionHash = sessionHelper.generateSessionHash(req.body)
@@ -60,7 +104,54 @@ router.post('/claude/v1/messages', authenticateApiKey, async (req, res) => {
   }
 })
 
-// OpenAI 端点 - /v1/responses
+// 🆕 统一路由 - OpenAI Chat Completions API
+router.post('/v1/chat/completions', authenticateApiKey, async (req, res) => {
+  try {
+    const sessionId =
+      req.headers['session_id'] ||
+      req.headers['x-session-id'] ||
+      req.body?.session_id ||
+      req.body?.conversation_id ||
+      null
+
+    const sessionHash = sessionId
+      ? crypto.createHash('sha256').update(String(sessionId)).digest('hex')
+      : null
+
+    if (!hasDroidPermission(req.apiKey)) {
+      logger.security(
+        `🚫 API Key ${req.apiKey?.id || 'unknown'} 缺少 Droid 权限，拒绝访问 ${req.originalUrl}`
+      )
+      return res.status(403).json({
+        error: 'permission_denied',
+        message: '此 API Key 未启用 Droid 权限'
+      })
+    }
+
+    const result = await droidRelayService.relayRequest(
+      req.body,
+      req.apiKey,
+      req,
+      res,
+      req.headers,
+      { endpointType: 'openai', sessionHash }
+    )
+
+    if (result.streaming) {
+      return
+    }
+
+    res.status(result.statusCode).set(result.headers).send(result.body)
+  } catch (error) {
+    logger.error('Droid OpenAI relay error:', error)
+    res.status(500).json({
+      error: 'internal_server_error',
+      message: error.message
+    })
+  }
+})
+
+// 🔄 向后兼容 - OpenAI 端点
 router.post(['/openai/v1/responses', '/openai/responses'], authenticateApiKey, async (req, res) => {
   try {
     const sessionId =

@@ -242,33 +242,52 @@ npm run setup  # 自动生成密钥并创建管理员账户
 
 ### API转发端点（多路由支持）
 
-#### Claude服务路由
+#### 🆕 统一 v1 路由（推荐，最简洁）
+
+##### Claude服务
+- `POST /v1/messages` - Claude消息处理（支持流式）
+- `POST /v1/messages/count_tokens` - Token计数Beta API
+- `GET /v1/me` - 用户信息（Claude Code客户端需要）
+- `GET /v1/usage` - 使用统计查询
+- `GET /v1/key-info` - API Key信息
+- `GET /v1/models` - 模型列表
+
+##### Gemini服务
+- `POST /v1/models/:model:generateContent` - 标准Gemini API格式
+- `POST /v1/models/:model:streamGenerateContent` - Gemini流式
+
+##### OpenAI兼容（智能路由）
+- `POST /v1/chat/completions` - OpenAI格式，自动识别服务类型（Claude/Gemini/OpenAI）
+
+##### Droid (Factory.ai)
+- `POST /droid/v1/messages` - Droid Claude转发
+- `POST /droid/v1/chat/completions` - Droid OpenAI转发
+
+#### 🔄 旧路由（向后兼容，继续支持）
+
+##### Claude服务路由
 - `POST /api/v1/messages` - Claude消息处理（支持流式）
 - `POST /claude/v1/messages` - Claude消息处理（别名路由）
-- `POST /v1/messages/count_tokens` - Token计数Beta API
 - `GET /api/v1/models` - 模型列表
 - `GET /api/v1/usage` - 使用统计查询
 - `GET /api/v1/key-info` - API Key信息
-- `GET /v1/me` - 用户信息（Claude Code客户端需要）
-- `GET /v1/organizations/:org_id/usage` - 组织使用统计
 
-#### Gemini服务路由
+##### Gemini服务路由
 - `POST /gemini/v1/models/:model:generateContent` - 标准Gemini API格式
 - `POST /gemini/v1/models/:model:streamGenerateContent` - Gemini流式
 - `GET /gemini/v1/models` - Gemini模型列表
-- 其他Gemini兼容路由（保持向后兼容）
 
-#### OpenAI兼容路由
-- `POST /openai/v1/chat/completions` - OpenAI格式转发（支持responses格式）
+##### OpenAI兼容路由
+- `POST /openai/v1/chat/completions` - OpenAI格式转发
 - `POST /openai/claude/v1/chat/completions` - OpenAI格式转Claude
 - `POST /openai/gemini/v1/chat/completions` - OpenAI格式转Gemini
 - `GET /openai/v1/models` - OpenAI格式模型列表
 
-#### Droid (Factory.ai) 路由
-- `POST /droid/claude/v1/messages` - Droid Claude转发
-- `POST /droid/openai/v1/chat/completions` - Droid OpenAI转发
+##### Droid (Factory.ai) 旧路由
+- `POST /droid/claude/v1/messages` - Droid Claude转发（旧路径）
+- `POST /droid/openai/v1/responses` - Droid OpenAI转发（旧路径）
 
-#### Azure OpenAI 路由
+##### Azure OpenAI 路由
 - `POST /azure/...` - Azure OpenAI API转发
 
 ### 管理端点

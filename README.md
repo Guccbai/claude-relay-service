@@ -392,8 +392,13 @@ docker-compose.yml 已包含：
 默认使用标准 Claude 账号池：
 
 ```bash
-export ANTHROPIC_BASE_URL="http://127.0.0.1:3000/api/" # 根据实际填写你服务器的ip地址或者域名
+# 🆕 新配置（推荐，更简洁）
+export ANTHROPIC_BASE_URL="http://127.0.0.1:3000/v1/" # 根据实际填写你服务器的ip地址或者域名
 export ANTHROPIC_AUTH_TOKEN="后台创建的API密钥"
+
+# 🔄 旧配置（继续支持，向后兼容）
+# export ANTHROPIC_BASE_URL="http://127.0.0.1:3000/api/"
+# export ANTHROPIC_AUTH_TOKEN="后台创建的API密钥"
 ```
 
 **VSCode Claude 插件配置：**
@@ -411,9 +416,13 @@ export ANTHROPIC_AUTH_TOKEN="后台创建的API密钥"
 **Gemini CLI 设置环境变量：**
 
 ```bash
+# 🆕 新配置（推荐，更简洁）
 GEMINI_MODEL="gemini-2.5-pro"
-GOOGLE_GEMINI_BASE_URL="http://127.0.0.1:3000/gemini" # 根据实际填写你服务器的ip地址或者域名
+GOOGLE_GEMINI_BASE_URL="http://127.0.0.1:3000/v1" # 根据实际填写你服务器的ip地址或者域名
 GEMINI_API_KEY="后台创建的API密钥"  # 使用相同的API密钥即可
+
+# 🔄 旧配置（继续支持，向后兼容）
+# GOOGLE_GEMINI_BASE_URL="http://127.0.0.1:3000/gemini"
 ```
 **使用 Claude Code：**
 
@@ -432,6 +441,7 @@ gemini  # 或其他 Gemini CLI 命令
 在 `~/.codex/config.toml` 文件**开头**添加以下配置：
 
 ```toml
+# 🆕 新配置（推荐，使用统一路由）
 model_provider = "crs"
 model = "gpt-5-codex"
 model_reasoning_effort = "high"
@@ -440,10 +450,15 @@ preferred_auth_method = "apikey"
 
 [model_providers.crs]
 name = "crs"
-base_url = "http://127.0.0.1:3000/openai"  # 根据实际填写你服务器的ip地址或者域名
-wire_api = "responses"
+base_url = "http://127.0.0.1:3000/v1"  # 根据实际填写你服务器的ip地址或者域名
+wire_api = "completions"  # 使用标准 chat/completions 端点
 requires_openai_auth = true
 env_key = "CRS_OAI_KEY"
+
+# 🔄 旧配置（继续支持，向后兼容）
+# [model_providers.crs]
+# base_url = "http://127.0.0.1:3000/openai"
+# wire_api = "responses"
 ```
 
 在 `~/.codex/auth.json` 文件中配置API密钥为 null：
@@ -472,7 +487,7 @@ Droid CLI 读取 `~/.factory/config.json`。可以在该文件中添加自定义
     {
       "model_display_name": "Sonnet 4.5 [crs]",
       "model": "claude-sonnet-4-5-20250929",
-      "base_url": "http://127.0.0.1:3000/droid/claude",
+      "base_url": "http://127.0.0.1:3000/droid/v1",
       "api_key": "后台创建的API密钥",
       "provider": "anthropic",
       "max_tokens": 8192
@@ -480,7 +495,7 @@ Droid CLI 读取 `~/.factory/config.json`。可以在该文件中添加自定义
     {
       "model_display_name": "GPT5-Codex [crs]",
       "model": "gpt-5-codex",
-      "base_url": "http://127.0.0.1:3000/droid/openai",
+      "base_url": "http://127.0.0.1:3000/droid/v1",
       "api_key": "后台创建的API密钥",
       "provider": "openai",
       "max_tokens": 16384
@@ -488,6 +503,10 @@ Droid CLI 读取 `~/.factory/config.json`。可以在该文件中添加自定义
   ]
 }
 ```
+
+**注意**：
+- 🆕 新配置使用 `/droid/v1` 路径（推荐）
+- 🔄 旧配置 `/droid/claude` 和 `/droid/openai` 继续支持
 
 > 💡 将示例中的 `http://127.0.0.1:3000` 替换为你的服务域名或公网地址，并写入后台生成的 API 密钥（cr_ 开头）。
 
@@ -502,75 +521,83 @@ Cherry Studio支持多种AI服务的接入，下面是不同账号类型的详�
 **1. Claude账号接入：**
 
 ```
-# API地址
-http://你的服务器:3000/claude
+# 🆕 新配置（推荐，更简洁）
+API地址: http://你的服务器:3000/v1
+供应商类型: Anthropic
+API Key: cr_开头的密钥
+
+# 🔄 旧配置（继续支持）
+API地址: http://你的服务器:3000/claude
 
 # 模型ID示例
 claude-sonnet-4-5-20250929 # Claude Sonnet 4.5
 claude-opus-4-20250514     # Claude Opus 4
 ```
 
-配置步骤：
-- 供应商类型选择"Anthropic"
-- API地址填入：`http://你的服务器:3000/claude`
-- API Key填入：后台创建的API密钥（cr_开头）
-
 **2. Gemini账号接入：**
 
 ```
-# API地址
-http://你的服务器:3000/gemini
+# 🆕 新配置（推荐，更简洁）
+API地址: http://你的服务器:3000/v1
+供应商类型: Gemini
+API Key: cr_开头的密钥
+
+# 🔄 旧配置（继续支持）
+API地址: http://你的服务器:3000/gemini
 
 # 模型ID示例
 gemini-2.5-pro             # Gemini 2.5 Pro
 ```
 
-配置步骤：
-- 供应商类型选择"Gemini"
-- API地址填入：`http://你的服务器:3000/gemini`
-- API Key填入：后台创建的API密钥（cr_开头）
-
-**3. Codex接入：**
+**3. OpenAI兼容接入：**
 
 ```
-# API地址
-http://你的服务器:3000/openai
+# 🆕 新配置（推荐，统一路由，智能识别）
+API地址: http://你的服务器:3000/v1
+供应商类型: OpenAI
+API Key: cr_开头的密钥
 
-# 模型ID（固定）
-gpt-5                      # Codex使用固定模型ID
+# 🔄 旧配置（继续支持）
+API地址: http://你的服务器:3000/openai
+
+# 模型ID示例
+gpt-5-codex                # Codex
+claude-sonnet-4-5-20250929 # 也可以使用 Claude 模型（智能路由）
+gemini-2.5-pro             # 也可以使用 Gemini 模型（智能路由）
 ```
-
-配置步骤：
-- 供应商类型选择"Openai-Response"
-- API地址填入：`http://你的服务器:3000/openai`
-- API Key填入：后台创建的API密钥（cr_开头）
-- **重要**：Codex只支持Openai-Response标准
 
 
 **Cherry Studio 地址格式重要说明：**
 
-- ✅ **推荐格式**：`http://你的服务器:3000/claude`（不加结尾 `/`，让 Cherry Studio 自动加上 v1）
-- ✅ **等效格式**：`http://你的服务器:3000/claude/v1/`（手动指定 v1 并加结尾 `/`）
-- 💡 **说明**：这两种格式在 Cherry Studio 中是完全等效的
-- ❌ **错误格式**：`http://你的服务器:3000/claude/`（单独的 `/` 结尾会被 Cherry Studio 忽略 v1 版本）
+- ✅ **最佳格式**：`http://你的服务器:3000/v1`（新统一路由，最简洁）
+- ✅ **兼容格式**：`http://你的服务器:3000/claude`（旧路由，继续支持）
+- ✅ **完整格式**：`http://你的服务器:3000/v1/`（带结尾斜杠也可以）
+- 💡 **智能路由**：使用 `/v1` 时，会根据模型名称自动识别服务类型
+- 💡 **说明**：新路由支持 Claude、Gemini、OpenAI 的智能切换
 
 #### 其他第三方工具接入
 
 **接入要点：**
 
 - 所有账号类型都使用相同的API密钥（在后台统一创建）
-- 根据不同的路由前缀自动识别账号类型
-- `/claude/` - 使用Claude账号池
-- `/droid/claude/` - 使用Droid类型Claude账号池（只建议api调用或Droid Cli中使用）
-- `/gemini/` - 使用Gemini账号池  
-- `/openai/` - 使用Codex账号（只支持Openai-Response格式）
-- `/droid/openai/` - 使用Droid类型OpenAI兼容账号池（只建议api调用或Droid Cli中使用）
-- 支持所有标准API端点（messages、models等）
+- 🆕 **推荐使用统一路由**：`/v1` - 支持智能识别服务类型（Claude/Gemini/OpenAI）
+- 🔄 **旧路由继续支持**：
+  - `/claude/` - 使用Claude账号池
+  - `/gemini/` - 使用Gemini账号池  
+  - `/openai/` - 使用OpenAI账号池
+  - `/droid/v1/` - 使用Droid账号池（新路径）
+  - `/droid/claude/` 和 `/droid/openai/` - Droid旧路径（继续支持）
+
+**智能路由优势（使用 `/v1`）：**
+
+- 🎯 **自动识别**：根据模型名称自动路由到正确的服务
+- 🔀 **灵活切换**：一个端点支持多种模型（Claude、Gemini、OpenAI）
+- 📊 **统一管理**：简化配置，降低维护成本
 
 **重要说明：**
 
 - 确保在后台已添加对应类型的账号（Claude/Gemini/Codex）
-- API密钥可以通用，系统会根据路由自动选择账号类型
+- API密钥可以通用，系统会根据路由或模型名称自动选择账号类型
 - 建议为不同用户创建不同的API密钥便于使用统计
 
 ---
