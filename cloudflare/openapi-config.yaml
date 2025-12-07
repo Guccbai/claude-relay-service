@@ -1,0 +1,424 @@
+openapi: 3.1.0
+info:
+  title: Claude Relay Service - OpenAI Responses API
+  description: |
+    OpenAI Responses API 兼容端点，用于 Cloudflare API Gateway 配置。
+    支持 OpenAI Codex CLI 和其他兼容客户端。
+  version: 1.0.0
+  contact:
+    name: Claude Relay Service
+servers:
+  - url: https://{upstream_host}
+    description: Claude Relay Service 上游服务器
+    variables:
+      upstream_host:
+        default: your-relay-service.example.com
+        description: 你的 Claude Relay Service 部署地址
+
+security:
+  - BearerAuth: []
+
+paths:
+  /openai/responses:
+    post:
+      operationId: createResponse
+      summary: Create a response (OpenAI Responses format)
+      description: |
+        主要的 OpenAI Responses API 端点，支持流式和非流式响应。
+        兼容 Codex CLI 和其他 OpenAI 兼容客户端。
+      tags:
+        - Responses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponseRequest'
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseObject'
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE 流式响应
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /openai/v1/responses:
+    post:
+      operationId: createResponseV1
+      summary: Create a response (v1 alias)
+      description: /openai/responses 的别名路由
+      tags:
+        - Responses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponseRequest'
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseObject'
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /openai/responses/compact:
+    post:
+      operationId: createResponseCompact
+      summary: Create a compact response
+      description: 紧凑格式的 Responses API，用于减少响应大小
+      tags:
+        - Responses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponseRequest'
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseObject'
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /openai/v1/responses/compact:
+    post:
+      operationId: createResponseCompactV1
+      summary: Create a compact response (v1 alias)
+      description: /openai/responses/compact 的别名路由
+      tags:
+        - Responses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponseRequest'
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseObject'
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /openai/usage:
+    get:
+      operationId: getUsage
+      summary: Get API key usage statistics
+      description: 获取当前 API Key 的使用统计信息
+      tags:
+        - Usage
+      responses:
+        '200':
+          description: 使用统计
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /openai/key-info:
+    get:
+      operationId: getKeyInfo
+      summary: Get API key information
+      description: 获取当前 API Key 的详细信息
+      tags:
+        - Usage
+      responses:
+        '200':
+          description: API Key 信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: 使用 Claude Relay Service 的 API Key (cr_ 前缀)
+
+  schemas:
+    ResponseRequest:
+      type: object
+      required:
+        - model
+      properties:
+        model:
+          type: string
+          description: 模型名称
+          examples:
+            - gpt-4
+            - gpt-5
+            - codex-mini-latest
+        input:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                $ref: '#/components/schemas/InputItem'
+          description: 输入内容（字符串或消息数组）
+        instructions:
+          type: string
+          description: 系统指令
+        stream:
+          type: boolean
+          default: true
+          description: 是否启用流式响应
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          description: 温度参数
+        max_output_tokens:
+          type: integer
+          description: 最大输出 token 数
+        session_id:
+          type: string
+          description: 会话 ID（用于粘性会话）
+        conversation_id:
+          type: string
+          description: 对话 ID（session_id 别名）
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tool'
+          description: 可用工具列表
+        tool_choice:
+          oneOf:
+            - type: string
+              enum: [auto, none, required]
+            - type: object
+          description: 工具选择策略
+        previous_response_id:
+          type: string
+          description: 前一个响应 ID（用于对话上下文）
+        store:
+          type: boolean
+          description: 是否存储响应（compact 端点会忽略）
+
+    InputItem:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [message, item_reference]
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+
+    Tool:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [function, computer_use, bash, text_editor]
+        name:
+          type: string
+        description:
+          type: string
+        parameters:
+          type: object
+
+    ResponseObject:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 响应 ID
+        object:
+          type: string
+          enum: [response]
+        model:
+          type: string
+          description: 使用的模型
+        created_at:
+          type: integer
+          description: 创建时间戳
+        status:
+          type: string
+          enum: [completed, in_progress, failed]
+        output:
+          type: array
+          items:
+            type: object
+          description: 输出内容
+        usage:
+          $ref: '#/components/schemas/Usage'
+
+    Usage:
+      type: object
+      properties:
+        input_tokens:
+          type: integer
+          description: 输入 token 数
+        output_tokens:
+          type: integer
+          description: 输出 token 数
+        total_tokens:
+          type: integer
+          description: 总 token 数
+        input_tokens_details:
+          type: object
+          properties:
+            cached_tokens:
+              type: integer
+              description: 缓存命中的 token 数
+
+    UsageStats:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [usage]
+        total_tokens:
+          type: integer
+        total_requests:
+          type: integer
+        daily_tokens:
+          type: integer
+        daily_requests:
+          type: integer
+        monthly_tokens:
+          type: integer
+        monthly_requests:
+          type: integer
+
+    KeyInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        permissions:
+          type: string
+          enum: [all, claude, gemini, openai]
+        token_limit:
+          type: integer
+        tokens_used:
+          type: integer
+        tokens_remaining:
+          type: integer
+          nullable: true
+        rate_limit:
+          type: object
+          properties:
+            window:
+              type: string
+            requests:
+              type: integer
+        usage:
+          type: object
+          properties:
+            total:
+              type: object
+            daily:
+              type: object
+            monthly:
+              type: object
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            type:
+              type: string
+            code:
+              type: string
+            resets_in_seconds:
+              type: integer
+              description: 限流重置时间（秒）
+
+  responses:
+    Unauthorized:
+      description: 未授权 - API Key 无效或缺失
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: 禁止访问 - API Key 权限不足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    RateLimited:
+      description: 请求过于频繁
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              type: usage_limit_reached
+              message: The usage limit has been reached
+              resets_in_seconds: 3600
+
+    InternalError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Responses
+    description: OpenAI Responses API 兼容端点
+  - name: Usage
+    description: 使用统计和 API Key 信息
