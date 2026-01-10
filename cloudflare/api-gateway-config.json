@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Claude Relay Service - Cloudflare API Gateway Configuration",
+  "description": "用于 Cloudflare API Gateway / API Shield 的配置文件",
+  "version": "1.0.0",
+
+  "gateway": {
+    "name": "claude-relay-openai-gateway",
+    "description": "OpenAI Responses API 兼容网关",
+    "upstreams": [
+      {
+        "name": "relay-service-primary",
+        "url": "https://your-relay-service.example.com",
+        "weight": 100,
+        "healthCheck": {
+          "path": "/health",
+          "interval": 30,
+          "timeout": 10,
+          "unhealthyThreshold": 3,
+          "healthyThreshold": 2
+        }
+      }
+    ]
+  },
+
+  "routes": [
+    {
+      "id": "openai-responses",
+      "path": "/openai/responses",
+      "methods": ["POST"],
+      "upstream": "relay-service-primary",
+      "stripPath": false,
+      "timeout": 600000,
+      "retries": 0,
+      "rateLimit": {
+        "enabled": false,
+        "note": "Rate limiting handled by upstream service"
+      }
+    },
+    {
+      "id": "openai-responses-v1",
+      "path": "/openai/v1/responses",
+      "methods": ["POST"],
+      "upstream": "relay-service-primary",
+      "stripPath": false,
+      "timeout": 600000,
+      "retries": 0
+    },
+    {
+      "id": "openai-responses-compact",
+      "path": "/openai/responses/compact",
+      "methods": ["POST"],
+      "upstream": "relay-service-primary",
+      "stripPath": false,
+      "timeout": 600000,
+      "retries": 0
+    },
+    {
+      "id": "openai-responses-compact-v1",
+      "path": "/openai/v1/responses/compact",
+      "methods": ["POST"],
+      "upstream": "relay-service-primary",
+      "stripPath": false,
+      "timeout": 600000,
+      "retries": 0
+    },
+    {
+      "id": "openai-usage",
+      "path": "/openai/usage",
+      "methods": ["GET"],
+      "upstream": "relay-service-primary",
+      "stripPath": false,
+      "timeout": 30000,
+      "retries": 1,
+      "cache": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "openai-key-info",
+      "path": "/openai/key-info",
+      "methods": ["GET"],
+      "upstream": "relay-service-primary",
+      "stripPath": false,
+      "timeout": 30000,
+      "retries": 1,
+      "cache": {
+        "enabled": false
+      }
+    }
+  ],
+
+  "security": {
+    "authentication": {
+      "type": "bearer",
+      "required": true,
+      "headerName": "Authorization",
+      "passthrough": true,
+      "note": "Authentication handled by upstream service using cr_ prefixed API keys"
+    },
+    "cors": {
+      "enabled": true,
+      "allowOrigins": ["*"],
+      "allowMethods": ["GET", "POST", "OPTIONS"],
+      "allowHeaders": [
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "User-Agent",
+        "Session_Id",
+        "X-Session-Id",
+        "Version",
+        "OpenAI-Beta"
+      ],
+      "exposeHeaders": [
+        "X-Request-Id",
+        "OpenAI-Version",
+        "OpenAI-Processing-Ms"
+      ],
+      "maxAge": 86400
+    },
+    "headers": {
+      "remove": [
+        "cf-connecting-ip",
+        "cf-ipcountry",
+        "cf-ray",
+        "cf-visitor"
+      ],
+      "add": {
+        "X-Forwarded-Proto": "https"
+      }
+    }
+  },
+
+  "streaming": {
+    "enabled": true,
+    "contentTypes": ["text/event-stream"],
+    "bufferResponse": false,
+    "headers": {
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no"
+    }
+  },
+
+  "logging": {
+    "enabled": true,
+    "level": "info",
+    "includeHeaders": false,
+    "includeBody": false,
+    "excludePaths": ["/health"]
+  },
+
+  "errorHandling": {
+    "custom5xx": {
+      "enabled": true,
+      "response": {
+        "error": {
+          "message": "Service temporarily unavailable",
+          "type": "service_error",
+          "code": "service_unavailable"
+        }
+      }
+    },
+    "timeout": {
+      "response": {
+        "error": {
+          "message": "Request timeout",
+          "type": "timeout_error",
+          "code": "request_timeout"
+        }
+      }
+    }
+  },
+
+  "requestTransform": {
+    "headers": {
+      "passthrough": [
+        "authorization",
+        "content-type",
+        "accept",
+        "user-agent",
+        "session_id",
+        "x-session-id",
+        "version",
+        "openai-beta"
+      ],
+      "add": {
+        "X-Forwarded-By": "cloudflare-gateway"
+      }
+    }
+  },
+
+  "responseTransform": {
+    "headers": {
+      "passthrough": [
+        "content-type",
+        "openai-version",
+        "x-request-id",
+        "openai-processing-ms"
+      ],
+      "remove": [
+        "server",
+        "x-powered-by"
+      ]
+    }
+  },
+
+  "healthCheck": {
+    "path": "/health",
+    "expectedStatus": 200,
+    "interval": 30
+  },
+
+  "metadata": {
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z",
+    "maintainer": "Claude Relay Service Team",
+    "documentation": "https://github.com/your-repo/claude-relay-service"
+  }
+}
