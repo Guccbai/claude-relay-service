@@ -140,7 +140,7 @@ class OpenAIResponsesRelayService {
           sessionHash
         )
 
-        // 返回错误响应（使用处理后的数据，避免循环引用）
+        // 构建错误响应
         const errorResponse = errorData || {
           error: {
             message: 'Rate limit exceeded',
@@ -149,7 +149,16 @@ class OpenAIResponsesRelayService {
             resets_in_seconds: resetsInSeconds
           }
         }
-        return res.status(429).json(errorResponse)
+
+        // 抛出可重试错误，由路由层决定是重试还是返回给客户端
+        const rateLimitError = new Error('OpenAI-Responses account rate limited')
+        rateLimitError.statusCode = 429
+        rateLimitError.retryable = true
+        rateLimitError.accountId = account.id
+        rateLimitError.accountName = account.name
+        rateLimitError.resetsInSeconds = resetsInSeconds
+        rateLimitError.errorResponse = errorResponse
+        throw rateLimitError
       }
 
       // 处理其他错误状态码

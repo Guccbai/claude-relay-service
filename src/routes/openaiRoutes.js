@@ -93,18 +93,25 @@ async function applyRateLimitTracking(req, usageSummary, model, context = '') {
 }
 
 // 使用统一调度器选择 OpenAI 账户
-async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel = null) {
+// excludedAccountIds: 可选的 Set，用于排除特定账户（例如 429 重试时排除已限流的账户）
+async function getOpenAIAuthToken(
+  apiKeyData,
+  sessionId = null,
+  requestedModel = null,
+  excludedAccountIds = null
+) {
   try {
     // 生成会话哈希（如果有会话ID）
     const sessionHash = sessionId
       ? crypto.createHash('sha256').update(sessionId).digest('hex')
       : null
 
-    // 使用统一调度器选择账户
+    // 使用统一调度器选择账户（传递排除列表）
     const result = await unifiedOpenAIScheduler.selectAccountForApiKey(
       apiKeyData,
       sessionHash,
-      requestedModel
+      requestedModel,
+      excludedAccountIds
     )
 
     if (!result || !result.accountId) {
@@ -207,6 +214,9 @@ async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel =
   }
 }
 
+// 最大重试次数（429 时切换账户）
+const MAX_429_RETRIES = 2
+
 // 主处理函数，供两个路由共享
 const handleResponses = async (req, res) => {
   let upstream = null
@@ -216,6 +226,10 @@ const handleResponses = async (req, res) => {
   let account = null
   let proxy = null
   let accessToken = null
+  // 用于 429 重试时排除已限流的账户
+  const excludedAccountIds = new Set()
+  let retryCount = 0
+  let lastRateLimitError = null
 
   try {
     // 从中间件获取 API Key 数据
@@ -289,17 +303,80 @@ const handleResponses = async (req, res) => {
       logger.info('✅ Codex CLI request detected, forwarding as-is')
     }
 
-    // 使用调度器选择账户
-    ;({ accessToken, accountId, accountType, proxy, account } = await getOpenAIAuthToken(
-      apiKeyData,
-      sessionId,
-      requestedModel
-    ))
+    // 429 重试循环：如果遇到限流，尝试切换到其他账户
+    while (retryCount <= MAX_429_RETRIES) {
+      try {
+        // 使用调度器选择账户（传递排除列表）
+        ;({ accessToken, accountId, accountType, proxy, account } = await getOpenAIAuthToken(
+          apiKeyData,
+          sessionId,
+          requestedModel,
+          excludedAccountIds.size > 0 ? excludedAccountIds : null
+        ))
 
-    // 如果是 OpenAI-Responses 账户，使用专门的中继服务处理
-    if (accountType === 'openai-responses') {
-      logger.info(`🔀 Using OpenAI-Responses relay service for account: ${account.name}`)
-      return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)
+        // 如果是 OpenAI-Responses 账户，使用专门的中继服务处理
+        if (accountType === 'openai-responses') {
+          logger.info(
+            `🔀 Using OpenAI-Responses relay service for account: ${account.name}${retryCount > 0 ? ` (retry ${retryCount})` : ''}`
+          )
+          return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)
+        }
+
+        // 普通 OpenAI 账户，跳出重试循环，继续后面的处理
+        break
+      } catch (retryError) {
+        // 检查是否是可重试的 429 错误
+        if (retryError.retryable && retryError.statusCode === 429) {
+          lastRateLimitError = retryError
+          retryCount++
+
+          // 将限流账户添加到排除列表
+          if (retryError.accountId) {
+            excludedAccountIds.add(retryError.accountId)
+            logger.warn(
+              `🔄 OpenAI-Responses account ${retryError.accountName || retryError.accountId} rate limited, ` +
+                `attempting retry ${retryCount}/${MAX_429_RETRIES} with different account...`
+            )
+          }
+
+          // 如果还有重试机会，继续循环
+          if (retryCount <= MAX_429_RETRIES) {
+            continue
+          }
+
+          // 超过重试次数，返回 429 给客户端
+          logger.warn(
+            `🚫 All retry attempts exhausted for OpenAI-Responses, returning 429 to client`
+          )
+          return res.status(429).json(
+            retryError.errorResponse || {
+              error: {
+                message: 'Rate limit exceeded on all available accounts',
+                type: 'rate_limit_error',
+                code: 'rate_limit_exceeded',
+                resets_in_seconds: retryError.resetsInSeconds
+              }
+            }
+          )
+        }
+
+        // 其他错误，直接抛出
+        throw retryError
+      }
+    }
+
+    // 如果没有选中账户（所有账户都被排除），返回 429
+    if (!account) {
+      logger.warn(`🚫 No available OpenAI accounts after exclusion, returning 429 to client`)
+      return res.status(429).json(
+        lastRateLimitError?.errorResponse || {
+          error: {
+            message: 'No available OpenAI accounts',
+            type: 'rate_limit_error',
+            code: 'no_available_accounts'
+          }
+        }
+      )
     }
     // 基于白名单构造上游所需的请求头，确保键为小写且值受控
     const incoming = req.headers || {}

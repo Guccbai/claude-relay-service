@@ -148,7 +148,13 @@ class UnifiedOpenAIScheduler {
   }
 
   // 🎯 统一调度OpenAI账号
-  async selectAccountForApiKey(apiKeyData, sessionHash = null, requestedModel = null) {
+  // excludedAccountIds: 可选的 Set，用于排除特定账户（例如 429 重试时排除已限流的账户）
+  async selectAccountForApiKey(
+    apiKeyData,
+    sessionHash = null,
+    requestedModel = null,
+    excludedAccountIds = null
+  ) {
     try {
       // 如果API Key绑定了专属账户或分组，优先使用
       if (apiKeyData.openaiAccountId) {
@@ -317,8 +323,12 @@ class UnifiedOpenAIScheduler {
         }
       }
 
-      // 获取所有可用账户
-      const availableAccounts = await this._getAllAvailableAccounts(apiKeyData, requestedModel)
+      // 获取所有可用账户（传递排除列表）
+      const availableAccounts = await this._getAllAvailableAccounts(
+        apiKeyData,
+        requestedModel,
+        excludedAccountIds
+      )
 
       if (availableAccounts.length === 0) {
         // 提供更详细的错误信息
@@ -371,7 +381,8 @@ class UnifiedOpenAIScheduler {
   }
 
   // 📋 获取所有可用账户（仅共享池）
-  async _getAllAvailableAccounts(apiKeyData, requestedModel = null) {
+  // excludedAccountIds: 可选的 Set，用于排除特定账户
+  async _getAllAvailableAccounts(apiKeyData, requestedModel = null, excludedAccountIds = null) {
     const availableAccounts = []
 
     // 注意：专属账户的处理已经在 selectAccountForApiKey 中完成
@@ -386,6 +397,12 @@ class UnifiedOpenAIScheduler {
         (account.accountType === 'shared' || !account.accountType) // 兼容旧数据
       ) {
         const accountId = account.id || account.accountId
+
+        // 检查是否在排除列表中
+        if (excludedAccountIds && excludedAccountIds.has(accountId)) {
+          logger.debug(`⏭️ Skipping OpenAI account ${account.name} - excluded by retry logic`)
+          continue
+        }
 
         const readiness = await this._ensureAccountReadyForScheduling(account, accountId, {
           sanitized: true
@@ -454,6 +471,14 @@ class UnifiedOpenAIScheduler {
         account.status !== 'rateLimited' &&
         (account.accountType === 'shared' || !account.accountType)
       ) {
+        // 检查是否在排除列表中
+        if (excludedAccountIds && excludedAccountIds.has(account.id)) {
+          logger.debug(
+            `⏭️ Skipping OpenAI-Responses account ${account.name} - excluded by retry logic`
+          )
+          continue
+        }
+
         const hasRateLimitFlag = this._hasRateLimitFlag(account.rateLimitStatus)
         const schedulable = this._isSchedulable(account.schedulable)
 
@@ -647,16 +672,9 @@ class UnifiedOpenAIScheduler {
         await openaiAccountService.setAccountRateLimited(accountId, true, resetsInSeconds)
       } else if (accountType === 'openai-responses') {
         // 对于 OpenAI-Responses 账户，使用与普通 OpenAI 账户类似的处理方式
+        // markAccountRateLimited 已经设置了所有必要字段（schedulable、rateLimitResetAt等）
         const duration = resetsInSeconds ? Math.ceil(resetsInSeconds / 60) : null
         await openaiResponsesAccountService.markAccountRateLimited(accountId, duration)
-
-        // 同时更新调度状态，避免继续被调度
-        await openaiResponsesAccountService.updateAccount(accountId, {
-          schedulable: 'false',
-          rateLimitResetAt: resetsInSeconds
-            ? new Date(Date.now() + resetsInSeconds * 1000).toISOString()
-            : new Date(Date.now() + 3600000).toISOString() // 默认1小时
-        })
       }
 
       // 删除会话映射
